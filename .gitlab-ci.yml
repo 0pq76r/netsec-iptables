@@ -33,6 +33,7 @@ give-score:
   stage: evaluate
   image: netsecethz/iptables-evaluator:latest
   script:
+    - "mkdir $CI_PROJECT_DIR/test-results/"
     - "pwd"
     - "ls $CI_PROJECT_DIR/.test-out/"
     - "evaluator -s $CI_PROJECT_DIR/.test-out/public-testcases -o $CI_PROJECT_DIR/test-results/final_result.json"
