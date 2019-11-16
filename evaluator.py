@@ -16,6 +16,38 @@ PROCESSING_MESSAGE = "processing"
 SUCCESS_MESSAGE = "success"
 EQUIVALENCE_MESSAGE = "Equivalent."
 TOTAL_ROUTERS = 167
+TOTAL_TESTCASES = 21
+ROUTERS_PER_TESTCASE = {
+    '0': 1,
+    '1': 1,
+    '2': 4,
+    '3': 4,
+    '4': 4,
+    '5': 4,
+    '6': 1,
+    '7': 1,
+    '8': 1,
+    '9': 1,
+    '10': 1,
+    '11': 1,
+    '12': 11,
+    '13': 10,
+    '14': 12,
+    '15': 12,
+    '16': 13,
+    '17': 11,
+    '18': 10,
+    '19': 12,
+    '20': 52,
+}
+
+def check_routers_per_testcase_dict():
+    routers_in_testcases = 0
+    for testcase in ROUTERS_PER_TESTCASE:
+        routers_in_testcases += ROUTERS_PER_TESTCASE[testcase]
+    if routers_in_testcases != TOTAL_ROUTERS:
+        print("WARNING: ROUTERS_PER_TESTCASE dict has the wrong amount of total routers.")
+
 
 def number_aware_key_generator(entry):
     try:
@@ -75,6 +107,7 @@ def submit(testcases, solution_dir, submission_id_dict):
 def submit_all(solution_dir, submission_id_dict):
 ## First, submit all the solutions to the server
     testcases = os.listdir(solution_dir)
+    testcases = [x for x in testcases if can_be_int(x)]
     testcases.sort(key = number_aware_key_generator)
     submit(testcases, solution_dir, submission_id_dict)
 
@@ -120,18 +153,18 @@ def get_results(submission_id_dict, result_dict):
                 print("Unexpected response from server: {}".format(result))
                 sys.exit(1)
 
-def calculate_score(result_dict):
-    total_score = 0
-    for testcase in result_dict:
-        testcase_score = 0;
-        for router in result_dict[testcase]:
-            if result_dict[testcase][router]['equivalence'] == EQUIVALENCE_MESSAGE:
-                testcase_score += 1
-        testcase_score /= len(result_dict[testcase])
-        print("Score for testcase {}: {:.2f}".format(testcase, testcase_score))
-        total_score += testcase_score
-    total_score /= len(result_dict)
-    print("Total score: {:.2f}".format(total_score))
+# def calculate_score(result_dict):
+#     total_score = 0
+#     for testcase in result_dict:
+#         testcase_score = 0;
+#         for router in result_dict[testcase]:
+#             if result_dict[testcase][router]['equivalence'] == EQUIVALENCE_MESSAGE:
+#                 testcase_score += 1
+#         testcase_score /= len(result_dict[testcase])
+#         print("Score for testcase {}: {:.2f}".format(testcase, testcase_score))
+#         total_score += testcase_score
+#     total_score /= len(result_dict)
+#     print("Total score: {:.2f}".format(total_score))
 
 def count_correct_routers_in_testcase(testcase):
     correct_routers = 0   
@@ -146,14 +179,27 @@ def count_total_correct_routers(result_dict):
         correct_routers += count_correct_routers_in_testcase(result_dict[testcase])
     return correct_routers
 
+def count_total_correct_testcases(result_dict):
+    correct_testcases = 0
+    for testcase in result_dict:
+        correct_routers = count_correct_routers_in_testcase(result_dict[testcase])
+        correct_testcases += correct_routers == ROUTERS_PER_TESTCASE[testcase]
+    return correct_testcases
+
 def print_project_grade(result_dict):
     correct_routers = count_total_correct_routers(result_dict)
-    project_grade = correct_routers/TOTAL_ROUTERS * 5 + 1
+    correct_testcases = count_total_correct_testcases(result_dict)
+    project_score = correct_testcases/TOTAL_TESTCASES
+    project_grade = correct_testcases/TOTAL_TESTCASES * 5 + 1
     print("You correctly generated config files for {} out of {} routers".format(
         correct_routers,
         TOTAL_ROUTERS
     ))
-    print("This corresponds to a score of {:.2}/1".format(correct_routers/TOTAL_ROUTERS))
+    print("Your solutions are correct for {} out of {} test cases".format(
+        correct_testcases,
+        TOTAL_TESTCASES
+    ))
+    print("This corresponds to a score of {:.2}/1".format(project_score))
     print("This corresponds to a project grade of {:.2}/6".format(project_grade))
 
 def write_output_file(result_dict, file_path):
@@ -166,7 +212,8 @@ def write_output_file(result_dict, file_path):
 
 if __name__ == "__main__":
 
-    import argparse
+    check_routers_per_testcase_dict()
+
     parser = parser = argparse.ArgumentParser()
     parser.add_argument('testcases', metavar='testcase', nargs='*', type=str)
     parser.add_argument('-s', '--solution_dir', dest = 'solution_dir', default = 'outputs')
@@ -184,4 +231,5 @@ if __name__ == "__main__":
     print_project_grade(result_dict)
     if args.output_file:
         write_output_file(result_dict, args.output_file)
+
 
