@@ -11,11 +11,18 @@ class Subnet:
         self.ifaces=list()
     
 class Interface:
-    def __init__(self, name, ip, router):
+    def __init__(self, name, ip, router,subnet):
         self.router=router
         self.name=name
         self.ip=ip
+        self.subnet = subnet
         self.net = ""
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return self.name + "@R" + str(self.router.routerId)
 
 class Router:
     default = """
@@ -46,8 +53,8 @@ COMMIT
         self.routerId = routerId
         self.interfaces = dict()
 
-    def addInterface(self, iface, ip):
-        self.interfaces[iface] = Interface(iface, ip, self)
+    def addInterface(self, iface, ip, subnet):
+        self.interfaces[iface] = Interface(iface, ip, self, subnet)
         return self.interfaces[iface]
 
 print("ARGS ....")
@@ -55,6 +62,19 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-i", type=str, help="(optional, default = inputs/)")
 parser.add_argument("-o", type=str, help="(optional, default = outputs/)")
 args = parser.parse_args()
+
+def dfs(subnets, src, dst, pos, orig):
+    for netif in subnets[pos].ifaces:
+        if netif.router.routerId == orig:
+            continue
+        for _,routif in netif.router.interfaces.items():
+            if routif.subnet == subnets[dst]:
+                return [(netif, routif)]
+            if not routif.subnet == subnets[pos]:
+                k = dfs(subnets, src, dst, routif.subnet.id, netif.router.routerId)
+                if k:
+                    return [(netif, routif), *k]
+    return None
 
 if args.i:
     INPUT_DIR = args.i
@@ -82,7 +102,7 @@ for fil in filter(lambda x: ".json" in x, FILES):
     for subnet in case['network']['subnets']:
         subnets[subnet['id']] = Subnet(subnet['id'], subnet['address']+'/'+str(subnet['prefix']))
     for link in case['network']['links']:
-        iface = routers[link['routerId']].addInterface(link['interfaceId'], link['ip'])
+        iface = routers[link['routerId']].addInterface(link['interfaceId'], link['ip'], subnets[link['subnetId']])
         subnets[link['subnetId']].ifaces.append(iface)
 
     for com in case['communications']: 
@@ -104,47 +124,32 @@ for fil in filter(lambda x: ".json" in x, FILES):
                 " -d " + s_net + " -s " + d_net
             contrack=" -m state --state NEW,ESTABLISHED "
             contrack_ret=" -m state --state ESTABLISHED "
- 
-        for d_iface in subnets[com['targetSubnetId']].ifaces:
-            d_router = d_iface.router
-            d_router.raw_head += \
+
+        print('----------')
+        print(fil)
+        path = dfs(subnets, com['sourceSubnetId'], com['targetSubnetId'], com['sourceSubnetId'], -1)
+        print('=----------')
+        print(path)
+
+        for (sif, dif) in path:
+            r = sif.router
+            r.raw_head += \
                 "-A PREROUTING -p " + com['protocol'] + tpl + \
-                " -o " + d_iface.name + \
+                " -o " + dif.name + " -i" + sif.name +\
                 " -j ACCEPT\n"
-            d_router.raw_head += \
+            r.raw_head += \
                 "-A PREROUTING -p " + com['protocol'] + tpl_ret + \
-                " -i " + d_iface.name + \
+                " -i " + dif.name + " -o " + sif.name + \
                 " -j ACCEPT\n"
-            d_router.filter_head += \
+            r.filter_head += \
                 "-A FORWARD -p " + com['protocol'] +  tpl +\
-                " -o " + d_iface.name + \
+                " -o " + dif.name + " -i " + sif.name + \
                 contrack + \
                 " -j ACCEPT\n"
             if com['protocol'] != "udp" or com['direction'] == "bidirectional":
-                d_router.filter_head += \
+                r.filter_head += \
                     "-A FORWARD -p " + com['protocol'] +  tpl_ret +\
-                    " -i " + d_iface.name + \
-                    contrack_ret + \
-                    " -j ACCEPT\n"
-        for s_iface in subnets[com['sourceSubnetId']].ifaces:
-            s_router = s_iface.router
-            s_router.raw_head += \
-                "-A PREROUTING -p " + com['protocol'] + tpl + \
-                " -i " + s_iface.name + \
-                " -j ACCEPT\n"
-            s_router.raw_head += \
-                "-A PREROUTING -p " + com['protocol'] + tpl_ret + \
-                " -o " + s_iface.name + \
-                " -j ACCEPT\n"
-            s_router.filter_head += \
-                "-A FORWARD -p " + com['protocol'] +  tpl +\
-                " -i " + s_iface.name + \
-                contrack + \
-                " -j ACCEPT\n"
-            if com['protocol'] != "udp" or com['direction'] == "bidirectional":
-                s_router.filter_head += \
-                    "-A FORWARD -p " + com['protocol'] +  tpl_ret +\
-                    " -o " + s_iface.name + \
+                    " -i " + dif.name + " -o " + sif.name + \
                     contrack_ret + \
                     " -j ACCEPT\n"
 
