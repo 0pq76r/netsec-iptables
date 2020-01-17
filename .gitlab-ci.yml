@@ -9,12 +9,11 @@ variables:
 public-testcases:
   stage: test
   image: northaeth/studentdocker:latest
-  before_script:
+  script:
     - "echo The project directory is: $CI_PROJECT_DIR"
     - "mkdir -p $CI_PROJECT_DIR/.test-out/$CI_JOB_NAME"
     - "find $CI_PROJECT_DIR -type f -iname \"*.sh\" -exec chmod +x {} \\;"
     - "chmod +x $CI_PROJECT_DIR/compile $CI_PROJECT_DIR/run"
-  script:
     - "$CI_PROJECT_DIR/compile"
     - "$CI_PROJECT_DIR/run -i $CI_PROJECT_DIR/inputs/ -o $CI_PROJECT_DIR/.test-out/$CI_JOB_NAME"
   artifacts:
@@ -28,15 +27,41 @@ public-testcases:
     variables:
       - $CI_COMMIT_MESSAGE =~ /skip-tests/
 
+hidden-testcases:
+  stage: test
+  image: northaeth/studentdocker:latest
+  script:
+    - "echo The project directory is: $CI_PROJECT_DIR"
+    - "mkdir hidden_inputs/"
+    - "curl -L https://course.netsec.inf.ethz.ch/iptables_hidden_testcases.tar | tar -xv -C hidden_inputs/"
+    - "mkdir -p $CI_PROJECT_DIR/.test-out/$CI_JOB_NAME"
+    - "find $CI_PROJECT_DIR -type f -iname \"*.sh\" -exec chmod +x {} \\;"
+    - "chmod +x $CI_PROJECT_DIR/compile $CI_PROJECT_DIR/run"
+    - "$CI_PROJECT_DIR/compile"
+    - "$CI_PROJECT_DIR/run -i $CI_PROJECT_DIR/hidden_inputs/ -o $CI_PROJECT_DIR/.test-out/$CI_JOB_NAME"
+  artifacts:
+    paths:
+      - ".test-out"
+  interruptible: true
+  only:
+    refs:
+      - master
+  except:
+    variables:
+      - $CI_COMMIT_MESSAGE =~ /skip-tests/
 
 give-score:
   stage: evaluate
   image: netsecethz/iptables-evaluator:latest
   script:
     - "mkdir $CI_PROJECT_DIR/test-results/"
+    - "mkdir $CI_PROJECT_DIR/all-outputs/"
     - "pwd"
     - "ls $CI_PROJECT_DIR/.test-out/"
-    - "evaluator -s $CI_PROJECT_DIR/.test-out/public-testcases -o $CI_PROJECT_DIR/test-results/final_result.json"
+    - "cp -r $CI_PROJECT_DIR/.test-out/public-testcases/* $CI_PROJECT_DIR/all-outputs/"
+    - "for TESTCASE in `ls $CI_PROJECT_DIR/.test-out/hidden-testcases/`; do cp -r $CI_PROJECT_DIR/.test-out/hidden-testcases/$TESTCASE $CI_PROJECT_DIR/all-outputs/10$TESTCASE; done"
+    - "ls $CI_PROJECT_DIR/all-outputs/"
+    - "evaluator -s $CI_PROJECT_DIR/all-outputs/ -o $CI_PROJECT_DIR/test-results/final_result.json"
   artifacts:
     paths:
       - "test-results"
