@@ -58,7 +58,7 @@ give-score:
     - "mkdir $CI_PROJECT_DIR/all-outputs/"
     - "pwd"
     - "ls $CI_PROJECT_DIR/.test-out/"
-    - "cp -r $CI_PROJECT_DIR/.test-out/public-testcases/ $CI_PROJECT_DIR/all-outputs/"
+    - "rsync -a $CI_PROJECT_DIR/.test-out/public-testcases/ $CI_PROJECT_DIR/all-outputs/"
     - "for TESTCASE in `ls $CI_PROJECT_DIR/.test-out/hidden-testcases/`; do cp -r $CI_PROJECT_DIR/.test-out/hidden-testcases/$TESTCASE $CI_PROJECT_DIR/all-outputs/10$TESTCASE; done"
     - "ls $CI_PROJECT_DIR/all-outputs/"
     - "evaluator -s $CI_PROJECT_DIR/all-outputs/ -o $CI_PROJECT_DIR/test-results/final_result.json"
